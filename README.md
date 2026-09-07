@@ -36,3 +36,29 @@
 ---
 
 ## 🏗️ Architecture
+* **Frontend:** Responsive dashboard interface built with vanilla HTML5, CSS3, and ES6 JavaScript[cite: 1, 3].
+* **Backend:** Express.js proxy server managing device polling, cross-origin requests, image preprocessing, and external API routing.
+* **Inference Engine:** Roboflow Hosted Inference API using custom-trained agricultural pest models.
+* **Embedded Controller:** ESP32 / ESP32-CAM running HTTP REST endpoints for ultrasonic telemetry, drive commands, and relay actuation[cite: 1, 2].
+
+---
+
+## 🚀 Live Demo & Evaluation Guide
+
+* **Web UI & AI Inference:** The hosted deployment at [feild-eye.onrender.com](https://feild-eye.onrender.com/) is live 24/7. Evaluators can test the dashboard responsiveness, change languages, and use the **Choose Image** button to upload sample crop images for immediate pest classification and recommendations[cite: 1, 3].
+* **Hardware Actuation & Video Stream:** Physical rover telemetry and real-time ESP32-CAM feeds operate via local network communication (`10.x.x.x` / `192.168.x.x`) during field operation[cite: 1, 2, 3]. When evaluating remotely without physical rover hardware connected to the cloud network, enter dummy IPs as instructed above; telemetry states will show disconnected while image inference remains fully functional[cite: 1, 2, 3].
+
+---
+
+## 🛠️ Local Installation & Setup
+
+To run the full stack locally with direct ESP32 hardware connection:
+
+### Prerequisites
+* [Node.js](https://nodejs.org/) (v18 or later)
+* ESP32 and ESP32-CAM connected to the same local Wi-Fi router or hotspot as your computer[cite: 1, 3].
+
+### 1. Clone the Repository
+```bash
+git clone [https://github.com/ricardo-lopez-codes/FEILD-EYE.git](https://github.com/ricardo-lopez-codes/FEILD-EYE.git)
+cd FEILD-EYE
