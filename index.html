@@ -1,0 +1,1552 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>AG Rover Dashboard</title>
+
+    <style>
+
+        /* =====================================================
+           GLOBAL
+        ===================================================== */
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            min-height: 100%;
+        }
+
+        body {
+            background: #080b09;
+            color: #eeeeee;
+            font-family:
+                Arial,
+                Helvetica,
+                sans-serif;
+        }
+
+        button,
+        select,
+        input {
+            font-family: inherit;
+        }
+
+
+        /* =====================================================
+           DASHBOARD
+        ===================================================== */
+
+        .dashboard {
+            width: 100%;
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 18px;
+
+            display: grid;
+
+            grid-template-columns:
+                minmax(0, 1.45fr)
+                minmax(380px, 1fr);
+
+            gap: 18px;
+        }
+
+
+        /* =====================================================
+           CARD
+        ===================================================== */
+
+        .card {
+            background: #101512;
+
+            border: 1px solid #242c27;
+
+            border-radius: 12px;
+
+            overflow: hidden;
+        }
+
+
+        /* =====================================================
+           CARD HEADER
+        ===================================================== */
+
+        .card-header {
+            min-height: 68px;
+
+            padding: 16px 20px;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: space-between;
+
+            border-bottom:
+                1px solid #242c27;
+        }
+
+        .card-title {
+            margin: 0;
+
+            font-size: 20px;
+
+            font-weight: 700;
+        }
+
+        .card-subtitle {
+            margin-top: 5px;
+
+            color: #738079;
+
+            font-size: 13px;
+        }
+
+
+        /* =====================================================
+           LIVE STATUS
+        ===================================================== */
+
+        .live-status {
+            display: flex;
+
+            align-items: center;
+
+            gap: 8px;
+
+            color: #ff5c67;
+
+            font-size: 13px;
+
+            font-weight: 700;
+        }
+
+        .live-dot {
+            width: 7px;
+            height: 7px;
+
+            border-radius: 50%;
+
+            background: #ff5c67;
+        }
+
+
+        /* =====================================================
+           CAMERA
+        ===================================================== */
+
+        .camera-card {
+            min-width: 0;
+        }
+
+        .camera-container {
+            width: 100%;
+
+            aspect-ratio: 16 / 9;
+
+            min-height: 320px;
+
+            background: #020403;
+
+            position: relative;
+
+            overflow: hidden;
+        }
+
+        #cameraStream {
+            width: 100%;
+            height: 100%;
+
+            display: none;
+
+            object-fit: cover;
+        }
+
+        #imagePreview {
+            width: 100%;
+            height: 100%;
+
+            display: none;
+
+            object-fit: contain;
+
+            background: #020403;
+        }
+
+        .camera-placeholder {
+            position: absolute;
+
+            inset: 0;
+
+            display: flex;
+
+            flex-direction: column;
+
+            align-items: center;
+
+            justify-content: center;
+
+            text-align: center;
+
+            color: #56615b;
+        }
+
+        .camera-icon {
+            width: 38px;
+            height: 38px;
+
+            margin-bottom: 14px;
+
+            border:
+                2px solid #3a453f;
+
+            border-radius: 50%;
+
+            position: relative;
+        }
+
+        .camera-icon::after {
+            content: "";
+
+            position: absolute;
+
+            width: 9px;
+            height: 9px;
+
+            left: 50%;
+            top: 50%;
+
+            transform:
+                translate(-50%, -50%);
+
+            border:
+                2px solid #3a453f;
+
+            border-radius: 50%;
+        }
+
+        .camera-placeholder-title {
+            font-size: 15px;
+        }
+
+        .camera-placeholder-subtitle {
+            margin-top: 7px;
+
+            font-size: 13px;
+
+            color: #414b46;
+        }
+
+
+        /* =====================================================
+           IMAGE CONTROLS
+        ===================================================== */
+
+        .image-controls {
+            min-height: 66px;
+
+            padding: 14px 16px;
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 10px;
+
+            border-top:
+                1px solid #242c27;
+        }
+
+        .image-name {
+            color: #6f7a74;
+
+            font-size: 13px;
+
+            overflow: hidden;
+
+            white-space: nowrap;
+
+            text-overflow: ellipsis;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+
+        /* =====================================================
+           BUTTONS
+        ===================================================== */
+
+        .btn {
+            border: 1px solid #303a34;
+
+            background: #171d19;
+
+            color: #eeeeee;
+
+            border-radius: 7px;
+
+            padding: 10px 14px;
+
+            cursor: pointer;
+
+            font-size: 13px;
+
+            transition:
+                background 0.15s ease,
+                border-color 0.15s ease,
+                opacity 0.15s ease;
+        }
+
+        .btn:hover {
+            background: #202822;
+
+            border-color: #46534b;
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: #202b24;
+
+            border-color: #3b4b40;
+        }
+
+        .btn-green {
+            background: #238b38;
+
+            border-color: #2ca945;
+
+            color: white;
+        }
+
+        .btn-green:hover {
+            background: #2ca945;
+        }
+
+        .btn-danger {
+            background: #542126;
+
+            border-color: #78323a;
+        }
+
+
+        /* =====================================================
+           SOLUTION CENTRE
+        ===================================================== */
+
+        .solution-content {
+            padding: 18px;
+        }
+
+        .field-label {
+            display: block;
+
+            margin-bottom: 8px;
+
+            color: #738079;
+
+            font-size: 12px;
+
+            font-weight: 700;
+
+            letter-spacing: 1px;
+
+            text-transform: uppercase;
+        }
+
+        .language-select {
+            width: 100%;
+
+            height: 45px;
+
+            padding: 0 12px;
+
+            background: #171d19;
+
+            color: #eeeeee;
+
+            border:
+                1px solid #303a34;
+
+            border-radius: 8px;
+
+            outline: none;
+
+            font-size: 14px;
+        }
+
+
+        /* =====================================================
+           INFORMATION BOX
+        ===================================================== */
+
+        .info-box {
+            margin-top: 14px;
+
+            padding: 15px;
+
+            background: #151b17;
+
+            border:
+                1px solid #252f29;
+
+            border-radius: 9px;
+        }
+
+        .info-label {
+            color: #738079;
+
+            font-size: 11px;
+
+            font-weight: 700;
+
+            letter-spacing: 1px;
+
+            text-transform: uppercase;
+
+            margin-bottom: 10px;
+        }
+
+        .detection-title {
+            font-size: 18px;
+
+            font-weight: 700;
+
+            line-height: 1.35;
+        }
+
+        .confidence-row {
+            display: flex;
+
+            align-items: center;
+
+            justify-content: space-between;
+
+            margin-top: 10px;
+
+            color: #738079;
+
+            font-size: 13px;
+        }
+
+        #confidence {
+            color: #35d56b;
+
+            font-weight: 700;
+        }
+
+
+        /* =====================================================
+           DETECTIONS
+        ===================================================== */
+
+        #detections {
+            display: flex;
+
+            flex-direction: column;
+
+            gap: 8px;
+        }
+
+        .detection-item {
+            display: flex;
+
+            justify-content: space-between;
+
+            align-items: center;
+
+            padding: 10px;
+
+            border:
+                1px solid #27312b;
+
+            border-radius: 7px;
+
+            background: #111713;
+        }
+
+        .detection-name {
+            font-weight: 600;
+        }
+
+        .detection-confidence {
+            color: #35d56b;
+
+            font-weight: 700;
+        }
+
+
+        /* =====================================================
+           SOLUTION
+        ===================================================== */
+
+        #solution {
+            line-height: 1.55;
+
+            font-size: 14px;
+
+            color: #d8dedb;
+        }
+
+        .listen-row {
+            margin-top: 13px;
+        }
+
+
+        /* =====================================================
+           ACTION PANEL
+        ===================================================== */
+
+        #action-panel {
+            display: none;
+
+            margin-top: 14px;
+
+            padding: 16px;
+
+            border:
+                1px solid #604a24;
+
+            border-radius: 9px;
+
+            background: #211c13;
+        }
+
+        .action-title {
+            display: flex;
+
+            align-items: center;
+
+            gap: 8px;
+
+            font-size: 16px;
+
+            font-weight: 700;
+        }
+
+        .action-text {
+            margin-top: 10px;
+
+            color: #c6c0b4;
+
+            font-size: 14px;
+        }
+
+        .action-buttons {
+            display: grid;
+
+            grid-template-columns: 1fr 1fr;
+
+            gap: 10px;
+
+            margin-top: 14px;
+        }
+
+        .action-buttons button {
+            min-height: 43px;
+        }
+
+
+        /* =====================================================
+           NOTIFICATIONS
+        ===================================================== */
+
+        .notifications-card {
+            margin-top: 18px;
+        }
+
+        .notifications {
+            max-height: 360px;
+
+            overflow-y: auto;
+
+            padding: 0 14px 14px;
+        }
+
+        .notification {
+            padding: 13px;
+
+            margin-top: 10px;
+
+            border-radius: 8px;
+
+            background: #151b17;
+
+            border:
+                1px solid #252e29;
+
+            border-left:
+                3px solid #31c96a;
+        }
+
+        .notification.warning {
+            border-left-color: #e6a832;
+        }
+
+        .notification.error {
+            border-left-color: #e0525f;
+        }
+
+        .notification-title {
+            font-weight: 700;
+
+            font-size: 14px;
+        }
+
+        .notification-message {
+            margin-top: 5px;
+
+            color: #929d96;
+
+            font-size: 13px;
+
+            line-height: 1.4;
+        }
+
+        .notification-time {
+            margin-top: 6px;
+
+            color: #59645e;
+
+            font-size: 11px;
+        }
+
+
+        /* =====================================================
+           ROVER STATUS
+        ===================================================== */
+
+        .status-card {
+            margin-top: 14px;
+
+            padding: 15px;
+        }
+
+        .status-row {
+            min-height: 42px;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: space-between;
+
+            border-bottom:
+                1px solid #242c27;
+        }
+
+        .status-row:last-child {
+            border-bottom: none;
+        }
+
+        .status-name {
+            color: #738079;
+
+            font-size: 13px;
+        }
+
+        .status-value {
+            font-size: 13px;
+
+            font-weight: 700;
+        }
+
+        .connected {
+            color: #35d56b;
+        }
+
+        .disconnected {
+            color: #ff5c67;
+        }
+
+        .sensor-safe {
+            color: #35d56b;
+        }
+
+        .sensor-blocked {
+            color: #ffb347;
+        }
+
+
+        /* =====================================================
+           RIGHT COLUMN
+        ===================================================== */
+
+        .right-column {
+            min-width: 0;
+        }
+
+
+        /* =====================================================
+           EMPTY STATE
+        ===================================================== */
+
+        .empty {
+            color: #657069;
+
+            font-size: 13px;
+        }
+
+
+        /* =====================================================
+           SCROLLBAR
+        ===================================================== */
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0b0e0c;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #303a34;
+
+            border-radius: 10px;
+        }
+
+
+        /* =====================================================
+           RESPONSIVE
+        ===================================================== */
+
+        @media (max-width: 950px) {
+
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+
+            .camera-container {
+                min-height: 260px;
+            }
+
+        }
+
+
+        @media (max-width: 600px) {
+
+            .dashboard {
+                padding: 10px;
+
+                gap: 10px;
+            }
+
+            .card-header {
+                padding: 14px;
+            }
+
+            .solution-content {
+                padding: 14px;
+            }
+
+            .image-controls {
+                flex-wrap: wrap;
+            }
+
+            .action-buttons {
+                grid-template-columns: 1fr;
+            }
+
+        }
+
+
+        /* =====================================================
+           CONNECTION POPUP
+        ===================================================== */
+
+        #connectionModal {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.82);
+            padding: 20px;
+        }
+
+        #connectionModal.hidden {
+            display: none;
+        }
+
+        .connection-box {
+            width: min(460px, 100%);
+            padding: 28px;
+            background: #101512;
+            border: 1px solid #344139;
+            border-radius: 14px;
+            box-shadow: 0 20px 60px rgba(0,0,0,.55);
+        }
+
+        .connection-title {
+            margin: 0;
+            font-size: 23px;
+            font-weight: 700;
+        }
+
+        .connection-subtitle {
+            margin: 8px 0 22px;
+            color: #829087;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .connection-field {
+            margin-bottom: 16px;
+        }
+
+        .connection-field label {
+            display: block;
+            margin-bottom: 7px;
+            color: #9aa59f;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: .7px;
+            text-transform: uppercase;
+        }
+
+        .connection-field input {
+            width: 100%;
+            height: 44px;
+            padding: 0 12px;
+            background: #171d19;
+            color: #eee;
+            border: 1px solid #303a34;
+            border-radius: 8px;
+            outline: none;
+            font-size: 14px;
+        }
+
+        .connection-field input:focus {
+            border-color: #5b6d60;
+        }
+
+        #connectDevicesBtn {
+            width: 100%;
+            min-height: 45px;
+            margin-top: 5px;
+            border: 1px solid #2ca945;
+            border-radius: 8px;
+            background: #238b38;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        #connectDevicesBtn:hover {
+            background: #2ca945;
+        }
+
+        #connectionError {
+            min-height: 18px;
+            margin-top: 10px;
+            color: #ff6872;
+            font-size: 12px;
+        }
+
+        .connection-note {
+            margin-top: 14px;
+            color: #59645e;
+            font-size: 11px;
+            line-height: 1.45;
+        }
+
+    </style>
+</head>
+
+
+<body>
+
+
+
+<!-- ============================================================
+     ESP32 / ESP32-CAM CONNECTION POPUP
+============================================================ -->
+
+<div id="connectionModal">
+
+    <div class="connection-box">
+
+        <h2 class="connection-title">
+            AG Rover Connection
+        </h2>
+
+        <div class="connection-subtitle">
+            Enter the local IP addresses of the rover ESP32
+            and ESP32-CAM. The dashboard will use them
+            automatically.
+        </div>
+
+        <div class="connection-field">
+
+            <label for="esp32IpInput">
+                ESP32 Rover IP
+            </label>
+
+            <input
+                type="text"
+                id="esp32IpInput"
+                placeholder="e.g. 10.237.129.133"
+                autocomplete="off"
+            >
+
+        </div>
+
+        <div class="connection-field">
+
+            <label for="esp32CamIpInput">
+                ESP32-CAM IP
+            </label>
+
+            <input
+                type="text"
+                id="esp32CamIpInput"
+                placeholder="e.g. 10.237.129.242"
+                autocomplete="off"
+            >
+
+        </div>
+
+        <button
+            type="button"
+            id="connectDevicesBtn"
+        >
+            CONNECT DEVICES
+        </button>
+
+        <div id="connectionError"></div>
+
+        <div class="connection-note">
+            Both devices and the laptop must be on the same
+            Wi-Fi/hotspot network.
+        </div>
+
+    </div>
+
+</div>
+
+<!-- ============================================================
+     MAIN DASHBOARD
+============================================================ -->
+
+<div class="dashboard">
+
+
+    <!-- ========================================================
+         LEFT COLUMN
+    ========================================================= -->
+
+    <div class="left-column">
+
+
+        <!-- ====================================================
+             LIVE CAMERA
+        ==================================================== -->
+
+        <section class="card camera-card">
+
+            <div class="card-header">
+
+                <div>
+
+                    <h1 class="card-title">
+                        Live Feed
+                    </h1>
+
+                    <div class="card-subtitle">
+                        ESP32-CAM / Image Analysis
+                    </div>
+
+                </div>
+
+                <div class="live-status">
+
+                    <span class="live-dot"></span>
+
+                    LIVE
+
+                </div>
+
+            </div>
+
+
+            <div class="camera-container">
+
+
+                <!-- ESP32 CAMERA STREAM -->
+
+                <img
+                    id="cameraStream"
+                    src=""
+                    alt="ESP32-CAM Live Stream"
+                >
+
+
+                <!-- UPLOADED IMAGE PREVIEW -->
+
+                <img
+                    id="imagePreview"
+                    src=""
+                    alt="Selected image"
+                >
+
+
+                <!-- PLACEHOLDER -->
+
+                <div
+                    id="cameraPlaceholder"
+                    class="camera-placeholder"
+                >
+
+                    <div class="camera-icon"></div>
+
+                    <div
+                        id="cameraPlaceholderTitle"
+                        class="camera-placeholder-title"
+                    >
+                        ESP32-CAM not connected
+                    </div>
+
+                    <div
+                        id="cameraPlaceholderSubtitle"
+                        class="camera-placeholder-subtitle"
+                    >
+                        Live camera will appear here
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- IMAGE UPLOAD CONTROLS -->
+
+            <div class="image-controls">
+
+                <input
+                    type="file"
+                    id="imageInput"
+                    class="file-input"
+                    accept="image/*"
+                >
+
+                <button
+                    type="button"
+                    id="chooseImageBtn"
+                    class="btn"
+                >
+                    Choose Image
+                </button>
+
+                <button
+                    type="button"
+                    id="analyzeImageBtn"
+                    class="btn btn-primary"
+                    disabled
+                >
+                    Analyse Image
+                </button>
+
+                <span
+                    id="imageName"
+                    class="image-name"
+                >
+                    No image selected
+                </span>
+
+            </div>
+
+        </section>
+
+
+
+        <!-- ====================================================
+             NOTIFICATIONS
+        ==================================================== -->
+
+        <section
+            class="card notifications-card"
+        >
+
+            <div class="card-header">
+
+                <h2 class="card-title">
+                    Notifications
+                </h2>
+
+                <button
+                    type="button"
+                    id="clearNotifications"
+                    class="btn"
+                    style="
+                        border: none;
+                        background: transparent;
+                        padding: 5px;
+                        color: #738079;
+                    "
+                >
+                    Clear
+                </button>
+
+            </div>
+
+
+            <div
+                id="notifications"
+                class="notifications"
+            >
+
+                <div class="notification">
+
+                    <div class="notification-title">
+                        Dashboard ready
+                    </div>
+
+                    <div class="notification-message">
+                        Waiting for rover and camera connection.
+                    </div>
+
+                    <div class="notification-time">
+                        Just now
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </div>
+
+
+
+    <!-- ========================================================
+         RIGHT COLUMN
+    ========================================================= -->
+
+    <div class="right-column">
+
+
+        <!-- ====================================================
+             SOLUTION CENTRE
+        ==================================================== -->
+
+        <section class="card">
+
+            <div class="card-header">
+
+                <div>
+
+                    <h2 class="card-title">
+                        Solution Centre
+                    </h2>
+
+                    <div class="card-subtitle">
+                        AI-powered agricultural assistance
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="solution-content">
+
+
+                <!-- LANGUAGE -->
+
+                <label
+                    class="field-label"
+                    for="language"
+                >
+                    Language
+                </label>
+
+                <select
+                    id="language"
+                    class="language-select"
+                >
+
+                    <option value="en">
+                        English
+                    </option>
+
+                    <option value="ta">
+                        தமிழ்
+                    </option>
+
+                    <option value="hi">
+                        हिन्दी
+                    </option>
+
+                    <option value="te">
+                        తెలుగు
+                    </option>
+
+                    <option value="kn">
+                        ಕನ್ನಡ
+                    </option>
+
+                    <option value="ml">
+                        മലയാളം
+                    </option>
+
+                    <option value="bn">
+                        বাংলা
+                    </option>
+
+                    <option value="mr">
+                        मराठी
+                    </option>
+
+                    <option value="gu">
+                        ગુજરાતી
+                    </option>
+
+                    <option value="pa">
+                        ਪੰਜਾਬੀ
+                    </option>
+
+                </select>
+
+
+
+                <!-- =================================================
+                     DETECTION
+                ================================================== -->
+
+                <div class="info-box">
+
+                    <div class="info-label">
+                        Detection
+                    </div>
+
+                    <div
+                        id="detection"
+                        class="detection-title"
+                    >
+                        Waiting for analysis
+                    </div>
+
+                    <div class="confidence-row">
+
+                        <span>
+                            Confidence
+                        </span>
+
+                        <span id="confidence">
+                            —
+                        </span>
+
+                    </div>
+
+                </div>
+
+
+
+                <!-- =================================================
+                     DETECTIONS
+                ================================================== -->
+
+                <div class="info-box">
+
+                    <div class="info-label">
+                        Detections
+                    </div>
+
+                    <div
+                        id="detections"
+                    >
+
+                        <div class="empty">
+                            No analysis performed yet.
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+
+                <!-- =================================================
+                     RECOMMENDED SOLUTION
+                ================================================== -->
+
+                <div class="info-box">
+
+                    <div class="info-label">
+                        Recommended Solution
+                    </div>
+
+                    <div id="solution">
+
+                        Upload an image or connect the
+                        ESP32-CAM to analyse the plant.
+
+                    </div>
+
+
+                    <div class="listen-row">
+
+                        <button
+                            type="button"
+                            id="listenButton"
+                            class="btn"
+                        >
+                            🔊 Listen
+                        </button>
+
+                    </div>
+
+                </div>
+
+
+
+                <!-- =================================================
+                     ACTION REQUIRED
+                ================================================== -->
+
+                <div
+                    id="action-panel"
+                >
+
+                    <div class="action-title">
+
+                        ⚠️
+
+                        <span>
+                            Pest detected
+                        </span>
+
+                    </div>
+
+                    <div
+                        id="action-message"
+                        class="action-text"
+                    >
+                        Pest detected.
+                        Do you want to spray pesticide?
+                    </div>
+
+                    <div class="action-buttons">
+
+                        <button
+                            type="button"
+                            id="sprayYes"
+                            class="btn btn-green"
+                        >
+                            YES
+                        </button>
+
+                        <button
+                            type="button"
+                            id="sprayNo"
+                            class="btn"
+                        >
+                            NO
+                        </button>
+
+                    </div>
+
+                </div>
+
+
+
+                <!-- =================================================
+                     ROVER STATUS
+                ================================================== -->
+
+                <div
+                    class="info-box status-card"
+                >
+
+                    <div class="info-label">
+                        Rover Status
+                    </div>
+
+
+                    <!-- BLUETOOTH -->
+
+                    <div class="status-row">
+
+                        <span class="status-name">
+                            Bluetooth
+                        </span>
+
+                        <span
+                            id="bluetooth"
+                            class="status-value disconnected"
+                        >
+                            ● Disconnected
+                        </span>
+
+                    </div>
+
+
+                    <!-- MODE -->
+
+                    <div class="status-row">
+
+                        <span class="status-name">
+                            Mode
+                        </span>
+
+                        <span
+                            id="rover-mode"
+                            class="status-value"
+                        >
+                            Automatic
+                        </span>
+
+                    </div>
+
+
+                    <!-- MOVEMENT -->
+
+                    <div class="status-row">
+
+                        <span class="status-name">
+                            Movement
+                        </span>
+
+                        <span
+                            id="rover-state"
+                            class="status-value"
+                        >
+                            Scanning
+                        </span>
+
+                    </div>
+
+
+                    <!-- LEFT SENSOR -->
+
+                    <div class="status-row">
+
+                        <span class="status-name">
+                            Left Sensor
+                        </span>
+
+                        <span
+                            id="left-sensor"
+                            class="status-value"
+                        >
+                            —
+                        </span>
+
+                    </div>
+
+
+                    <!-- FRONT SENSOR -->
+
+                    <div class="status-row">
+
+                        <span class="status-name">
+                            Front Sensor
+                        </span>
+
+                        <span
+                            id="front-sensor"
+                            class="status-value"
+                        >
+                            —
+                        </span>
+
+                    </div>
+
+
+                    <!-- RIGHT SENSOR -->
+
+                    <div class="status-row">
+
+                        <span class="status-name">
+                            Right Sensor
+                        </span>
+
+                        <span
+                            id="right-sensor"
+                            class="status-value"
+                        >
+                            —
+                        </span>
+
+                    </div>
+
+
+                    <!-- THRESHOLD -->
+
+                    <div class="status-row">
+
+                        <span class="status-name">
+                            Obstacle Threshold
+                        </span>
+
+                        <span
+                            id="threshold"
+                            class="status-value"
+                        >
+                            20 cm
+                        </span>
+
+                    </div>
+
+
+                    <!-- RELAY -->
+
+                    <div class="status-row">
+
+                        <span class="status-name">
+                            Spray Pump
+                        </span>
+
+                        <span
+                            id="relay-status"
+                            class="status-value"
+                        >
+                            OFF
+                        </span>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </div>
+
+</div>
+
+
+
+<!-- ============================================================
+     JAVASCRIPT
+============================================================ -->
+
+<script src="script.js"></script>
+
+
+</body>
+</html>
