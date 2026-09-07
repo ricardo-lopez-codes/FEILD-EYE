@@ -1,7 +1,7 @@
 {
   "name": "field-eye",
   "version": "1.0.0",
-  "description": "AI-powered Agriculture Rover Dashboard",
+  "description": "AI Agriculture Rover Dashboard",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
