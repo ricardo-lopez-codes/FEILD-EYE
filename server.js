@@ -1,324 +1,224 @@
 "use strict";
 
-const roverState = {
-    connected: false,
-    bluetooth: false,
-    mode: "Automatic",
-    movement: "Scanning",
-    sensor: { left: null, front: null, right: null },
-    detection: null,
-    confidence: 0,
-    spraying: false,
-    selectedImage: null,
-    currentLanguage: "en",
-    currentSolutionEnglish: "",
-    currentDisplayedSolution: ""
-};
+require("dotenv").config();
 
-const languages = {
-    en: { name: "English", speech: "en-IN" },
-    ta: { name: "Tamil", speech: "ta-IN" },
-    hi: { name: "Hindi", speech: "hi-IN" },
-    te: { name: "Telugu", speech: "te-IN" },
-    kn: { name: "Kannada", speech: "kn-IN" },
-    ml: { name: "Malayalam", speech: "ml-IN" }
-};
+const express = require("express");
+const path = require("path");
+const multer = require("multer");
 
-const DEVICE_STORAGE_KEYS = {
-    esp32: "ag_rover_esp32_ip",
-    camera: "ag_rover_esp32_cam_ip"
-};
+let translationClient = null;
+let ttsClient = null;
 
-function getDeviceIPs() {
-    return {
-        esp32: localStorage.getItem(DEVICE_STORAGE_KEYS.esp32) || "",
-        camera: localStorage.getItem(DEVICE_STORAGE_KEYS.camera) || ""
-    };
+try {
+    const { TranslationServiceClient } = require("@google-cloud/translate");
+    const textToSpeech = require("@google-cloud/text-to-speech");
+    translationClient = new TranslationServiceClient();
+    ttsClient = new textToSpeech.TextToSpeechClient();
+} catch (err) {
+    console.warn("[WARN] Google Cloud clients not initialized. Using local fallbacks.");
 }
 
-function getESP32BaseURL() {
-    const ip = getDeviceIPs().esp32;
-    return ip ? `http://${ip}` : "";
+const app = express();
+const PORT = process.env.PORT || 8000;
+const ESP32_URL = process.env.ESP32_URL || "http://10.146.88.133";
+
+const ROBOFLOW_API_KEY = process.env.ROBOFLOW_API_KEY || "";
+const ROBOFLOW_MODEL = process.env.ROBOFLOW_MODEL || "pest-detection-6neyl";
+const ROBOFLOW_VERSION = process.env.ROBOFLOW_VERSION || "2";
+const GOOGLE_PROJECT = process.env.GOOGLE_CLOUD_PROJECT || "circular-curve-424206-v3";
+
+function getRequestedESP32URL(req) {
+    const requested = String(req.query.esp32 || "").trim();
+    if (!requested) return ESP32_URL;
+
+    let value = requested;
+    if (!/^https?:\/\//i.test(value)) {
+        value = `http://${value}`;
+    }
+    return value.replace(/\/+$/, "");
 }
 
-function getCameraStreamURL() {
-    const ip = getDeviceIPs().camera;
-    return ip ? `http://${ip}:81/stream` : "";
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-    setupDeviceConnectionPopup();
-    setupLanguage();
-    setupListenButton();
-    setupSprayButtons();
-    setupImageUpload();
-    setupNotifications();
-    startRoverPolling();
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 20 * 1024 * 1024 }
 });
 
-function setupDeviceConnectionPopup() {
-    const modal = document.getElementById("connectionModal");
-    const button = document.getElementById("connectDevicesBtn");
-    const esp32Input = document.getElementById("esp32IpInput");
-    const cameraInput = document.getElementById("esp32CamIpInput");
-    const configBtn = document.getElementById("reopenConfigBtn");
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(express.static(__dirname));
 
-    const ips = getDeviceIPs();
-    if (esp32Input) esp32Input.value = ips.esp32;
-    if (cameraInput) cameraInput.value = ips.camera;
+app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "index.html"));
+});
 
-    if (!ips.esp32 || !ips.camera) {
-        modal.classList.remove("hidden");
-    } else {
-        modal.classList.add("hidden");
-        activateCameraStream(getCameraStreamURL());
+app.get("/api/status", (req, res) => {
+    res.json({
+        success: true,
+        server: "AG Rover Dashboard",
+        status: "online",
+        port: PORT,
+        esp32: ESP32_URL
+    });
+});
+
+app.get("/api/rover/data", async (req, res) => {
+    try {
+        const roverURL = getRequestedESP32URL(req);
+        const response = await fetch(`${roverURL}/data`, {
+            method: "GET",
+            signal: AbortSignal.timeout(3000)
+        });
+
+        if (!response.ok) throw new Error(`ESP32 HTTP ${response.status}`);
+        const data = await response.json();
+        res.json({ success: true, connected: true, ...data });
+    } catch (error) {
+        res.status(503).json({
+            success: false,
+            connected: false,
+            error: "ESP32 is not reachable",
+            details: error.message
+        });
     }
+});
 
-    button.addEventListener("click", () => {
-        const esp32 = esp32Input.value.trim().replace(/^https?:\/\//, "").replace(/\/+$/, "");
-        const camera = cameraInput.value.trim().replace(/^https?:\/\//, "").replace(/\/+$/, "").replace(/:81$/, "");
+app.get("/api/rover/command", async (req, res) => {
+    try {
+        const roverURL = getRequestedESP32URL(req);
+        const command = String(req.query.cmd || "").trim().toUpperCase();
+        const allowedCommands = ["FORWARD", "BACKWARD", "LEFT", "RIGHT", "STOP", "MANUAL", "AUTOMATIC"];
 
-        if (!esp32 || !camera) {
-            document.getElementById("connectionError").textContent = "Please fill in both IP addresses.";
-            return;
+        if (!allowedCommands.includes(command)) {
+            return res.status(400).json({ success: false, error: "Invalid command" });
         }
 
-        localStorage.setItem(DEVICE_STORAGE_KEYS.esp32, esp32);
-        localStorage.setItem(DEVICE_STORAGE_KEYS.camera, camera);
+        const response = await fetch(`${roverURL}/command?cmd=${encodeURIComponent(command)}`, {
+            method: "GET",
+            signal: AbortSignal.timeout(4000)
+        });
 
-        modal.classList.add("hidden");
-        activateCameraStream(getCameraStreamURL());
-        addNotification("IPs Updated", `ESP32: ${esp32} | Camera: ${camera}`, "success");
-        pollRoverData();
-    });
-
-    if (configBtn) {
-        configBtn.addEventListener("click", () => modal.classList.remove("hidden"));
+        const result = await response.text();
+        res.json({ success: true, command, result });
+    } catch (error) {
+        res.status(503).json({ success: false, error: "ESP32 error", details: error.message });
     }
-}
+});
 
-function activateCameraStream(url) {
-    const stream = document.getElementById("cameraStream");
-    const placeholder = document.getElementById("cameraPlaceholder");
-    const preview = document.getElementById("imagePreview");
+app.get("/api/rover/spray", async (req, res) => {
+    try {
+        const roverURL = getRequestedESP32URL(req);
+        const response = await fetch(`${roverURL}/spray`, {
+            method: "GET",
+            signal: AbortSignal.timeout(5000)
+        });
 
-    if (!url) return;
-    preview.style.display = "none";
-    placeholder.style.display = "none";
-    stream.style.display = "block";
-    stream.src = url;
-}
-
-function setupImageUpload() {
-    const chooseBtn = document.getElementById("chooseImageBtn");
-    const fileInput = document.getElementById("imageInput");
-    const analyzeBtn = document.getElementById("analyzeImageBtn");
-    const imageName = document.getElementById("imageName");
-    const preview = document.getElementById("imagePreview");
-    const stream = document.getElementById("cameraStream");
-    const placeholder = document.getElementById("cameraPlaceholder");
-
-    chooseBtn.addEventListener("click", () => fileInput.click());
-
-    fileInput.addEventListener("change", () => {
-        const file = fileInput.files[0];
-        if (!file) return;
-
-        roverState.selectedImage = file;
-        imageName.textContent = file.name;
-        analyzeBtn.disabled = false;
-
-        stream.style.display = "none";
-        placeholder.style.display = "none";
-        preview.style.display = "block";
-        preview.src = URL.createObjectURL(file);
-    });
-
-    analyzeBtn.addEventListener("click", async () => {
-        if (!roverState.selectedImage) return;
-
-        analyzeBtn.disabled = true;
-        analyzeBtn.textContent = "Analysing...";
-
-        const formData = new FormData();
-        formData.append("image", roverState.selectedImage);
-
-        try {
-            const response = await fetch("/api/analyze", { method: "POST", body: formData });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error || "Analysis failed");
-
-            handleAnalysisResult(data);
-        } catch (err) {
-            addNotification("Analysis Failed", err.message, "error");
-        } finally {
-            analyzeBtn.disabled = false;
-            analyzeBtn.textContent = "Analyse Image";
-        }
-    });
-}
-
-async function handleAnalysisResult(data) {
-    const detectionEl = document.getElementById("detection");
-    const confidenceEl = document.getElementById("confidence");
-    const detectionsListEl = document.getElementById("detections");
-    const actionPanel = document.getElementById("action-panel");
-    const actionMsg = document.getElementById("action-message");
-
-    if (!data.detected) {
-        detectionEl.textContent = "No pest detected";
-        confidenceEl.textContent = "—";
-        detectionsListEl.innerHTML = '<div style="color: #657069; font-size: 13px;">No pests detected.</div>';
-        actionPanel.style.display = "none";
-        await updateSolution("No pests were found on the plant.");
-        return;
+        const result = await response.text();
+        res.json({ success: true, message: "Spray triggered", result });
+    } catch (error) {
+        res.status(503).json({ success: false, error: "Spray failed", details: error.message });
     }
+});
 
-    const pest = data.pest || "Pest";
-    const confidence = Math.round(data.confidencePercent || (data.confidence * 100));
+app.post("/api/analyze", upload.single("image"), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ success: false, error: "No image uploaded" });
+        if (!ROBOFLOW_API_KEY) return res.status(500).json({ success: false, error: "Roboflow API key missing" });
 
-    detectionEl.textContent = `${pest} detected`;
-    confidenceEl.textContent = `${confidence}%`;
+        const modelId = `${ROBOFLOW_MODEL}/${ROBOFLOW_VERSION}`;
+        const base64Image = req.file.buffer.toString("base64");
+        const roboflowURL = `https://serverless.roboflow.com/${modelId}`;
 
-    detectionsListEl.innerHTML = (data.predictions || []).map(p => `
-        <div class="detection-item">
-            <span>${p.class || p.label}</span>
-            <span style="color:#35d56b; font-weight:700;">${Math.round(p.confidence * 100)}%</span>
-        </div>
-    `).join("");
+        const response = await fetch(roboflowURL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Authorization": `Bearer ${ROBOFLOW_API_KEY}`
+            },
+            body: base64Image,
+            signal: AbortSignal.timeout(60000)
+        });
 
-    actionMsg.textContent = `${pest} detected with ${confidence}% confidence. Spray pesticide?`;
-    actionPanel.style.display = "block";
+        const responseText = await response.text();
+        if (!response.ok) return res.status(response.status).json({ success: false, error: responseText });
 
-    await updateSolution(data.solution || `Pest detected. Take prompt remediation.`);
-}
+        const result = JSON.parse(responseText);
+        const predictions = Array.isArray(result.predictions) ? result.predictions : [];
 
-function setupLanguage() {
-    const select = document.getElementById("languageSelect");
-    select.addEventListener("change", async (e) => {
-        roverState.currentLanguage = e.target.value;
-        if (roverState.currentSolutionEnglish) {
-            await updateSolution(roverState.currentSolutionEnglish);
-        }
-    });
-}
-
-async function updateSolution(textEnglish) {
-    roverState.currentSolutionEnglish = textEnglish;
-    let translated = textEnglish;
-
-    if (roverState.currentLanguage !== "en") {
-        try {
-            const res = await fetch("/api/translate", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ text: textEnglish, targetLanguage: roverState.currentLanguage })
+        if (predictions.length === 0) {
+            return res.json({
+                success: true,
+                detected: false,
+                pest: null,
+                confidence: 0,
+                confidencePercent: 0,
+                predictions: [],
+                solution: "No pest was detected in the analysed image."
             });
-            const data = await res.json();
-            if (data.translatedText) translated = data.translatedText;
-        } catch (e) {
-            console.warn("Translation failed, using English:", e);
         }
+
+        let bestDetection = predictions[0];
+        for (const prediction of predictions) {
+            if (Number(prediction.confidence || 0) > Number(bestDetection.confidence || 0)) {
+                bestDetection = prediction;
+            }
+        }
+
+        const pest = bestDetection.class || bestDetection.label || "Unknown pest";
+        const confidence = Number(bestDetection.confidence || 0);
+
+        res.json({
+            success: true,
+            detected: true,
+            pest,
+            confidence,
+            confidencePercent: Math.round(confidence * 100),
+            detection: bestDetection,
+            predictions,
+            solution: `${pest} detected. Inspect affected leaves and apply targeted treatment.`
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: "Image analysis failed", details: error.message });
     }
+});
 
-    roverState.currentDisplayedSolution = translated;
-    document.getElementById("solution").textContent = translated;
-}
-
-function setupListenButton() {
-    document.getElementById("listenButton").addEventListener("click", async () => {
-        const text = roverState.currentDisplayedSolution || roverState.currentSolutionEnglish;
-        if (!text) return;
-
-        // Browser fallback speech synthesis
-        if ("speechSynthesis" in window) {
-            window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = languages[roverState.currentLanguage]?.speech || "en-IN";
-            window.speechSynthesis.speak(utterance);
-        }
-    });
-}
-
-function setupSprayButtons() {
-    const sprayYes = document.getElementById("sprayYes");
-    const sprayNo = document.getElementById("sprayNo");
-    const actionPanel = document.getElementById("action-panel");
-
-    sprayYes.addEventListener("click", async () => {
-        sprayYes.disabled = true;
-        addNotification("Sprayer", "Sprayer activated for 2 seconds.", "warning");
-        try {
-            await fetch(`/api/rover/spray?esp32=${encodeURIComponent(getESP32BaseURL())}`);
-        } catch (e) {
-            addNotification("Spray Failed", e.message, "error");
-        }
-        setTimeout(() => {
-            sprayYes.disabled = false;
-            actionPanel.style.display = "none";
-            addNotification("Sprayer", "Spray completed.", "success");
-        }, 2000);
-    });
-
-    sprayNo.addEventListener("click", () => {
-        actionPanel.style.display = "none";
-    });
-}
-
-function startRoverPolling() {
-    pollRoverData();
-    setInterval(pollRoverData, 1000);
-}
-
-async function pollRoverData() {
-    const esp32Base = getESP32BaseURL();
-    if (!esp32Base) return;
+app.post("/api/translate", async (req, res) => {
+    const { text, targetLanguage } = req.body;
+    if (!text || !targetLanguage || targetLanguage === "en" || !translationClient) {
+        return res.json({ success: true, originalText: text, translatedText: text, targetLanguage: targetLanguage || "en" });
+    }
 
     try {
-        const res = await fetch(`/api/rover/data?esp32=${encodeURIComponent(esp32Base)}`, { cache: "no-store" });
-        if (!res.ok) throw new Error("Unreachable");
-        const data = await res.json();
-
-        updateTelemetry(true, data);
-    } catch (e) {
-        updateTelemetry(false, null);
+        const [response] = await translationClient.translateText({
+            parent: `projects/${GOOGLE_PROJECT}/locations/global`,
+            contents: [String(text)],
+            mimeType: "text/plain",
+            sourceLanguageCode: "en",
+            targetLanguageCode: String(targetLanguage)
+        });
+        res.json({ success: true, originalText: text, translatedText: response.translations?.[0]?.translatedText || text, targetLanguage });
+    } catch (error) {
+        res.json({ success: true, originalText: text, translatedText: text, targetLanguage });
     }
-}
+});
 
-function updateTelemetry(connected, data) {
-    const btEl = document.getElementById("bluetooth-status");
-    const modeEl = document.getElementById("rover-mode");
-    const moveEl = document.getElementById("rover-movement");
-    const frontEl = document.getElementById("front-sensor");
-    const leftEl = document.getElementById("left-sensor");
-    const rightEl = document.getElementById("right-sensor");
-
-    if (!connected) {
-        btEl.textContent = "● Disconnected";
-        btEl.style.color = "#e05252";
-        return;
+app.post("/api/tts", async (req, res) => {
+    const { text, languageCode } = req.body;
+    if (!text || !ttsClient) {
+        return res.status(501).json({ success: false, error: "TTS fallback to browser" });
     }
 
-    btEl.textContent = "● Connected";
-    btEl.style.color = "#36d67a";
+    try {
+        const [response] = await ttsClient.synthesizeSpeech({
+            input: { text: String(text) },
+            voice: { languageCode: languageCode || "en-IN", ssmlGender: "NEUTRAL" },
+            audioConfig: { audioEncoding: "MP3" }
+        });
+        res.json({ success: true, audioContent: Buffer.from(response.audioContent).toString("base64") });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 
-    if (data.mode) modeEl.textContent = data.mode;
-    if (data.state || data.movement) moveEl.textContent = data.state || data.movement;
-    frontEl.textContent = data.front !== undefined ? `${data.front} cm` : "—";
-    leftEl.textContent = data.left !== undefined ? `${data.left} cm` : "—";
-    rightEl.textContent = data.right !== undefined ? `${data.right} cm` : "—";
-}
-
-function setupNotifications() {
-    document.getElementById("clearNotifications").addEventListener("click", () => {
-        document.getElementById("notifications").innerHTML = "";
-    });
-}
-
-function addNotification(title, msg, type = "success") {
-    const container = document.getElementById("notifications");
-    const div = document.createElement("div");
-    div.className = `notification-item ${type}`;
-    div.innerHTML = `<strong>${title}</strong>: ${msg}`;
-    container.prepend(div);
-}
+app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server listening on port ${PORT}`);
+});
