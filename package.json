@@ -1,0 +1,16 @@
+{
+  "name": "field-eye",
+  "version": "1.0.0",
+  "description": "AI-powered Agriculture Rover Dashboard",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@google-cloud/text-to-speech": "^6.2.0",
+    "@google-cloud/translate": "^9.2.0",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "multer": "^2.0.2"
+  }
+}
